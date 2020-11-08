@@ -1,0 +1,14 @@
+---
+standard-thread-pool-executor-config:
+  core-pool-size: 30
+  max-pool-size: 50
+  queue-capacity: 1000
+  await-termination: 5000
+  keep-alive-time: 300000
+  resubmission-delay: 500
+  prestart: false
+  time-out: true
+  time-unit: MILLISECONDS
+
+logging:
+  config: config/logback.xml
