@@ -4,7 +4,7 @@ public interface ItemHandler<T> {
 
     void execute(Runnable runnable);
 
-    void logger(Exception ex);
+    void logger(Exception e);
 
     void process(T item) throws Exception;
 

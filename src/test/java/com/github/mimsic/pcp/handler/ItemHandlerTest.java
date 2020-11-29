@@ -32,8 +32,8 @@ public class ItemHandlerTest implements ItemHandler<Item> {
     private ThreadPoolExecutor standardThreadPoolExecutor;
 
     public ItemHandlerTest() {
-        this.itemNumber = 100000;
-        this.itemProcessor = new ItemProcessor<>(this, null);
+        this.itemNumber = 1000;
+        this.itemProcessor = new ItemProcessor<>(this, 10);
     }
 
     @Before
@@ -48,13 +48,13 @@ public class ItemHandlerTest implements ItemHandler<Item> {
         for (int i = 0; i < itemNumber; i++) {
             itemProcessor.queue(new Item(i));
         }
-        if (!processorLatch.await(10, TimeUnit.SECONDS)) {
+        if (!processorLatch.await(120, TimeUnit.SECONDS)) {
             LOGGER.error("Item processor failed");
             throw new TimeoutException();
         }
         long timeStamp2 = System.nanoTime();
-        LOGGER.info("Completed itemNumber {} with threadNumber {}, in {} micro seconds",
-                itemNumber, threadNumber, (timeStamp2 - timeStamp1) / 1000);
+        LOGGER.info("Completed itemNumber {} with threadNumber {}, in {} milli seconds",
+                itemNumber, threadNumber, (timeStamp2 - timeStamp1) / 1000000);
     }
 
     @Override
@@ -64,12 +64,13 @@ public class ItemHandlerTest implements ItemHandler<Item> {
     }
 
     @Override
-    public void logger(Exception ex) {
-        LOGGER.info("", ex);
+    public void logger(Exception e) {
+        LOGGER.error("", e);
     }
 
     @Override
     public void process(Item item) throws Exception {
+        Thread.sleep(10);
         processorLatch.countDown();
     }
 
