@@ -46,13 +46,13 @@ public class StandardThreadPoolExecutorConfigurer implements InitializingBean, D
         boolean prestartAllCoreThreads = standardThreadPoolExecutorConfig.isPrestart();
         TimeUnit timeUnit = standardThreadPoolExecutorConfig.getTimeUnit();
 
-        Assert.isTrue(corePoolSize >= 0, "Illegal value for corePoolSize: " + corePoolSize);
-        Assert.isTrue(maximumPoolSize >= 0, "Illegal value for maximumPoolSize: " + maximumPoolSize);
+        Assert.isTrue(corePoolSize >= 0, "illegal value for corePoolSize: " + corePoolSize);
+        Assert.isTrue(maximumPoolSize >= 0, "illegal value for maximumPoolSize: " + maximumPoolSize);
         Assert.isTrue(corePoolSize <= maximumPoolSize, "corePoolSize greater than maximumPoolSize");
-        Assert.isTrue(queueCapacity > 0, "Illegal value for queueCapacity: " + queueCapacity);
-        Assert.isTrue(awaitTermination >= 0, "Illegal value for awaitTermination: " + awaitTermination);
-        Assert.isTrue(keepAliveTime >= 0, "Illegal value for keepAliveTime: " + keepAliveTime);
-        Assert.isTrue(resubmissionDelay >= 0, "Illegal value for resubmissionDelay: " + resubmissionDelay);
+        Assert.isTrue(queueCapacity > 0, "illegal value for queueCapacity: " + queueCapacity);
+        Assert.isTrue(awaitTermination >= 0, "illegal value for awaitTermination: " + awaitTermination);
+        Assert.isTrue(keepAliveTime >= 0, "illegal value for keepAliveTime: " + keepAliveTime);
+        Assert.isTrue(resubmissionDelay >= 0, "illegal value for resubmissionDelay: " + resubmissionDelay);
         Assert.isTrue(timeUnit != null, "timeUnit is null");
 
         ThreadFactory threadFactory = runnable -> {
@@ -63,8 +63,12 @@ public class StandardThreadPoolExecutorConfigurer implements InitializingBean, D
         };
 
         standardThreadPoolExecutor = new ThreadPoolExecutor(
-                corePoolSize, maximumPoolSize, keepAliveTime, timeUnit,
-                new LinkedBlockingQueue<>(queueCapacity), threadFactory);
+                corePoolSize,
+                maximumPoolSize,
+                keepAliveTime,
+                timeUnit,
+                new LinkedBlockingQueue<>(queueCapacity),
+                threadFactory);
 
         standardThreadPoolExecutor.allowCoreThreadTimeOut(allowCoreThreadTimeOut);
 
@@ -80,8 +84,9 @@ public class StandardThreadPoolExecutorConfigurer implements InitializingBean, D
         if (standardThreadPoolExecutor != null) {
 
             LOGGER.info(
-                    "About to purge and shutdown standard thread pool executor, active thread count(s): {}",
+                    "about to purge and shutdown standard thread pool executor, active thread count(s): {}",
                     standardThreadPoolExecutor.getActiveCount());
+
             standardThreadPoolExecutor.purge();
             standardThreadPoolExecutor.shutdownNow();
 

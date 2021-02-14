@@ -9,3 +9,10 @@ standard-thread-pool-executor-config:
   prestart: false
   time-out: true
   time-unit: MILLISECONDS
+
+scheduled-thread-pool-executor-config:
+  core-pool-size: 30
+  await-termination: 5000
+  cancel-policy: true
+  prestart: false
+  time-unit: MILLISECONDS
