@@ -38,7 +38,7 @@ public class HandlerTest implements Handler<Item> {
     @Before
     public void setUp() throws Exception {
         this.itemNumber = 1000;
-        this.processor = new Processor<>(this, 12, 1, 150);
+        this.processor = new Processor<>(this, 12, 1, 100);
     }
 
     @Test
@@ -54,22 +54,6 @@ public class HandlerTest implements Handler<Item> {
             throw new TimeoutException();
         }
         long timeStamp2 = System.nanoTime();
-        LoggerUtil.info(
-                this.getClass(),
-                "Completed itemNumber {} in {} milli seconds",
-                itemNumber, (timeStamp2 - timeStamp1) / 1000000);
-        Thread.sleep(10000);
-
-        timeStamp1 = System.nanoTime();
-        processorLatch = new CountDownLatch(itemNumber);
-        for (int i = 0; i < itemNumber; i++) {
-            processor.queue(new Item(i));
-        }
-        if (!processorLatch.await(120, TimeUnit.SECONDS)) {
-            LoggerUtil.error(this.getClass(), "Item processor failed");
-            throw new TimeoutException();
-        }
-        timeStamp2 = System.nanoTime();
         LoggerUtil.info(
                 this.getClass(),
                 "Completed itemNumber {} in {} milli seconds",
