@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.github.mimsic.pcp</groupId>
-    <artifactId>mimsic-producer-consmer-pattern</artifactId>
+    <artifactId>mimsic-adaptive-producer-consumer-pattern</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <parent>
@@ -47,7 +47,7 @@
     </dependencies>
 
     <build>
-        <finalName>mimsic-resource-bundle-server</finalName>
+        <finalName>mimsic-adaptive-producer-consumer-pattern</finalName>
         <plugins>
 
             <plugin>

@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -37,8 +38,8 @@ public class HandlerTest implements Handler<Item> {
 
     @Before
     public void setUp() throws Exception {
-        this.itemNumber = 1000;
-        this.processor = new Processor<>(this, 12, 1, 100);
+        this.itemNumber = 10000;
+        this.processor = new Processor<>(this, 12, 6, 300);
     }
 
     @Test
@@ -56,14 +57,16 @@ public class HandlerTest implements Handler<Item> {
         long timeStamp2 = System.nanoTime();
         LoggerUtil.info(
                 this.getClass(),
-                "Completed itemNumber {} in {} milli seconds",
+                "Completed itemNumber {} in {} milliseconds",
                 itemNumber, (timeStamp2 - timeStamp1) / 1000000);
     }
 
     @Override
     public void process(Item item) throws Exception {
 
-        Thread.sleep((long) (Math.random() * ((50 - 10) + 1)) + 10);
+        // A delay between 10 and 15 milliseconds to simulate processing time
+        Random random = new Random();
+        Thread.sleep(random.ints(10, (15 + 1)).limit(1).findFirst().orElse(0));
         processorLatch.countDown();
     }
 

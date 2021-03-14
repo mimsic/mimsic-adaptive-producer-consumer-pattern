@@ -1,2 +1,2 @@
-# mimsic-producer-consmer-pattern
-Producer Consumer Pattern - Non Blocking
+# mimsic-adaptive-producer-consumer-pattern
+Adaptive Producer Consumer Pattern - Non Blocking

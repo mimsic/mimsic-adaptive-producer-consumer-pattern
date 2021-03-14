@@ -15,17 +15,16 @@ public class Processor<T> {
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
 
-    private final Semaphore terminate = new Semaphore(0);
+    private final Semaphore terminator = new Semaphore(0);
     private final Semaphore regulator;
 
     private final LongAdder rate = new LongAdder();
-    private final LongAdder thread = new LongAdder();
+    private final LongAdder threads = new LongAdder();
 
     private final Handler<T> handler;
     private final Runnable process;
 
     private final int maxThreads;
-    private final int minThreads;
     private final long maxRate;
 
     public Processor(Handler<T> handler, int maxThreads, int minThreads, long maxRate) {
@@ -35,7 +34,6 @@ public class Processor<T> {
         this.regulator = new Semaphore(minThreads);
 
         this.maxThreads = maxThreads;
-        this.minThreads = minThreads;
         this.maxRate = maxRate;
 
         Optional.ofNullable(handler.schedule(this::regulate, 1000, 1000, TimeUnit.MILLISECONDS))
@@ -60,12 +58,12 @@ public class Processor<T> {
         try {
             if (regulator.tryAcquire(0, TimeUnit.SECONDS)) {
                 try {
-                    handler.submit(process);
-                    thread.increment();
+                    Optional.ofNullable(handler.submit(process)).orElseThrow(RuntimeException::new);
+                    threads.increment();
                 } catch (Exception e) {
                     LoggerUtil.error(handler.getClass(), "", e);
                     regulator.release();
-                    thread.decrement();
+                    threads.decrement();
                 }
             }
         } catch (InterruptedException e) {
@@ -99,8 +97,8 @@ public class Processor<T> {
 
         T data;
 
-        if (terminate.tryAcquire()) {
-            thread.decrement();
+        if (terminator.tryAcquire()) {
+            threads.decrement();
             return null;
         }
         if ((data = queue.poll()) == null) {
@@ -108,7 +106,7 @@ public class Processor<T> {
             try {
                 if ((data = queue.poll()) == null) {
                     regulator.release();
-                    thread.decrement();
+                    threads.decrement();
                 }
             } finally {
                 lock.writeLock().unlock();
@@ -120,21 +118,23 @@ public class Processor<T> {
     public void regulate() {
 
         long totalRate = rate.sumThenReset();
-        LoggerUtil.info(handler.getClass(), "totalRate: {}", totalRate);
-
-        long totalThreads = thread.sum();
-        LoggerUtil.info(handler.getClass(), "totalThreads: {}", totalThreads);
+        long totalThreads = threads.sum();
 
         if (totalThreads > 0) {
 
             long estimatedRate = (totalRate / totalThreads) * (totalThreads + 1);
-            LoggerUtil.info(handler.getClass(), "estimatedRate: {}", estimatedRate);
+            LoggerUtil.info(
+                    handler.getClass(),
+                    "totalThreads: {}, totalRate: {}, estimatedRate: {}",
+                    totalThreads,
+                    totalRate,
+                    estimatedRate);
 
             if (estimatedRate < maxRate && totalThreads < maxThreads) {
                 regulator.release();
                 this.execute();
-            } else if (totalRate > maxRate && totalThreads > minThreads) {
-                terminate.release();
+            } else if (totalRate > maxRate && totalThreads > 1) {
+                terminator.release();
             }
         }
     }
