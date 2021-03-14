@@ -1,6 +1,8 @@
 package com.github.mimsic.pcp.handler;
 
 import com.github.mimsic.pcp.util.LoggerUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Optional;
@@ -115,6 +117,8 @@ public class Processor<T> {
         return data;
     }
 
+    private static final Logger LOGGER = LoggerFactory.getLogger("analytics");
+
     public void regulate() {
 
         long totalRate = rate.sumThenReset();
@@ -129,6 +133,8 @@ public class Processor<T> {
                     totalThreads,
                     totalRate,
                     estimatedRate);
+
+            LOGGER.info("totalThreads: {}, totalRate: {}, estimatedRate: {}", totalThreads, totalRate, estimatedRate);
 
             if (estimatedRate < maxRate && totalThreads < maxThreads) {
                 regulator.release();
