@@ -9,5 +9,6 @@ import lombok.Setter;
 @Setter
 public class Item {
 
-    private int number;
+    private int batchId;
+    private int id;
 }

@@ -1,43 +1,74 @@
 package com.github.mimsic.pcp.handler;
 
-import com.github.mimsic.pcp.util.LoggerUtil;
+import com.github.mimsic.pcp.util.Log;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class Processor<T> {
 
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
-
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final Semaphore terminator = new Semaphore(0);
-    private final Semaphore regulator;
-
+    private final Semaphore regulator = new Semaphore(1);
     private final LongAdder rate = new LongAdder();
     private final LongAdder threads = new LongAdder();
 
+    private final ExecutorService executor;
     private final Handler<T> handler;
     private final Runnable process;
+    private final AtomicInteger maxThreads;
+    private final AtomicInteger maxRate;
+    private final AtomicLong maxLatency;
 
-    private final int maxThreads;
-    private final long maxRate;
+    public Processor(
+            ExecutorService executor,
+            ScheduledExecutorService scheduledExecutor,
+            Handler<T> handler,
+            int maxThreads,
+            int maxRate,
+            long maxLatency,
+            TimeUnit timeUnit) {
 
-    public Processor(Handler<T> handler, int maxThreads, int minThreads, long maxRate) {
-
+        this.executor = executor;
         this.handler = handler;
         this.process = this::process;
-        this.regulator = new Semaphore(minThreads);
 
-        this.maxThreads = maxThreads;
-        this.maxRate = maxRate;
+        this.maxThreads = new AtomicInteger(maxThreads);
+        this.maxRate = new AtomicInteger(maxRate);
+        this.maxLatency = new AtomicLong(timeUnit.toMillis(maxLatency));
 
-        Optional.ofNullable(handler.schedule(this::regulate, 1000, 1000, TimeUnit.MILLISECONDS))
-                .orElseThrow(RuntimeException::new);
+        scheduledExecutor.scheduleAtFixedRate(this::regulate, 1000, 1000, TimeUnit.MILLISECONDS);
+
+        Log.info(
+                handler.getClass(),
+                "Processor started with a max threads of {} a maxRate of {} and a max latency of {}",
+                maxThreads,
+                maxRate,
+                maxLatency);
+    }
+
+    public Processor<T> setMaxThreads(int maxThreads) {
+        this.maxThreads.set(maxThreads);
+        return this;
+    }
+
+    public Processor<T> setMaxRate(int maxRate) {
+        this.maxRate.set(maxRate);
+        return this;
+    }
+
+    public Processor<T> setMaxLatency(long maxLatency, TimeUnit timeUnit) {
+        this.maxLatency.set(timeUnit.toMillis(maxLatency));
+        return this;
     }
 
     public void queue(List<T> items) {
@@ -52,22 +83,21 @@ public class Processor<T> {
         execute();
     }
 
-    public void execute() {
+    private void execute() {
 
         lock.readLock().lock();
         try {
-            if (regulator.tryAcquire(0, TimeUnit.SECONDS)) {
+            if (regulator.tryAcquire(0, TimeUnit.NANOSECONDS)) {
                 try {
-                    Optional.ofNullable(handler.submit(process)).orElseThrow(RuntimeException::new);
+                    executor.submit(process);
                     threads.increment();
                 } catch (Exception e) {
-                    LoggerUtil.error(handler.getClass(), "", e);
+                    Log.error(handler.getClass(), "", e);
                     regulator.release();
-                    threads.decrement();
                 }
             }
         } catch (InterruptedException e) {
-            LoggerUtil.error(handler.getClass(), "", e);
+            Log.error(handler.getClass(), "", e);
             Thread.currentThread().interrupt();
         } finally {
             lock.readLock().unlock();
@@ -83,10 +113,10 @@ public class Processor<T> {
             try {
                 handler.process(data);
             } catch (InterruptedException e) {
-                LoggerUtil.error(handler.getClass(), "", e);
+                Log.error(handler.getClass(), "", e);
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
-                LoggerUtil.error(handler.getClass(), "", e);
+                Log.error(handler.getClass(), "", e);
             } finally {
                 rate.increment();
             }
@@ -97,7 +127,7 @@ public class Processor<T> {
 
         T data;
 
-        if (terminator.tryAcquire()) {
+        if (Thread.currentThread().isInterrupted() || terminator.tryAcquire()) {
             threads.decrement();
             return null;
         }
@@ -115,25 +145,33 @@ public class Processor<T> {
         return data;
     }
 
-    public void regulate() {
+    private void regulate() {
 
         long totalRate = rate.sumThenReset();
         long totalThreads = threads.sum();
 
         if (totalThreads > 0) {
 
-            long estimatedRate = (totalRate / totalThreads) * (totalThreads + 1);
-            LoggerUtil.info(
-                    handler.getClass(),
-                    "totalThreads: {}, totalRate: {}, estimatedRate: {}",
-                    totalThreads,
-                    totalRate,
-                    estimatedRate);
+            long avgRatePerThread = totalRate / totalThreads;
+            long avgLatency = 1000 / avgRatePerThread;
+            long estimatedThreads = totalThreads + 1;
+            long estimatedRate = avgRatePerThread * estimatedThreads;
 
-            if (estimatedRate < maxRate && totalThreads < maxThreads) {
+            Log.info(handler.getClass(),
+                    "Total rate of {} with {} threads, " +
+                            "average rate of {} and latency of {} per thread, " +
+                            "estimated rate of {} with {} threads",
+                    totalRate,
+                    totalThreads,
+                    avgRatePerThread,
+                    avgLatency,
+                    estimatedRate,
+                    estimatedThreads);
+
+            if (avgLatency < maxLatency.get() && estimatedRate < maxRate.get() && totalThreads < maxThreads.get()) {
                 regulator.release();
                 this.execute();
-            } else if (totalRate > maxRate && totalThreads > 1) {
+            } else if ((avgLatency > (maxLatency.get() * 1.05) || totalRate > (maxRate.get() * 1.05)) && totalThreads > 1) {
                 terminator.release();
             }
         }
