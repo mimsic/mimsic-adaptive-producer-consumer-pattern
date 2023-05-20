@@ -15,7 +15,7 @@ public class TwoTpsSampleTest {
     private ScheduledExecutorService scheduledExecutor;
 
     @BeforeEach
-    public void setUp() throws Exception {
+    public void setUp() {
 
         this.scheduledExecutor = new ScheduledExecutorConfigurer(
                 ScheduledExecutorConfig.builder()
